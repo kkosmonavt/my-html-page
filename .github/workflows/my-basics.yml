@@ -10,9 +10,8 @@ jobs:
   My-testing:
     runs-on: ubuntu-latest
     steps:
-      - run : echo "Hello World from Testing job"
-
+      - run: echo "Hello World from Testing Job!"
   My-deploy:
     runs-on: ubuntu-latest
     steps:
-      - run : echo "Hello World from Deploy job"
+      - run : echo "Hello World from Deploy job!"
