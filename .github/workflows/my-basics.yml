@@ -1,0 +1,29 @@
+#---------------------------
+#----просто комментарий :)--
+
+
+name: My-GitHubActions-Basics
+
+on:
+  push:
+    branches: 
+      -main
+
+jobs:
+  my-testing: 
+    runs-on: ubuntu-lastes
+
+    steps: 
+     - name: Print Hello Message
+       run : echo "Hello World from Testing job"
+
+
+  my-deploy: 
+    runs-on: ubuntu-lastes
+
+    steps: 
+     - name: Print Hello Message
+       run : echo "Hello World from Deploy job"
+
+
+
