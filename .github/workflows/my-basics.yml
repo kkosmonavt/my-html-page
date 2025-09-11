@@ -1,11 +1,6 @@
-name: My-GitHubActions-Basics
-
-#-----   env - environment variable  -----
-env: 
-  APPLICATION_NAME    : "MyFlask"
-  DEPLOY_PACKAGE_NAME : "flask-deploy-ver-${{ github.sha }}"
+name: Deploy-To-Ubunty-Server
   
-run-name: ${{ github.actor }} is testing out GitHub Actions 🚀
+run-name: ${{ github.actor }} is deploing new changes 🚀
 
 on: 
   push:
@@ -13,53 +8,69 @@ on:
       - main
 
 jobs:
-  My-testing:
+  Deploy:
     runs-on: ubuntu-latest
+
+    env:
+      REMOTE_HOST: ${{ secrets.REMOTE_HOST }}   
+      REMOTE_USER: ${{ secrets.REMOTE_USER }}   
+      TARGET_DIR: ${{ secrets.TARGET_DIR }}     
+      REMOTE_PORT: ${{ secrets.REMOTE_PORT }} 
     
     steps:
-      - name: Print Hello Message
-        run: echo "Hello World from Testing job"
+      - name: Checkout repository
+        uses: actions/checkout@v4
 
-      - name: Execure few commands
-        run : |
-          echo "Hello Message1"
-          echo "Hello Message2"
-          echo "Application name: ${{ env.APPLICATION_NAME }}"
-          
-      - name: List current folder
-        run : ls -la
+      - name: Prepare SSH key and known_hosts
+        run: |
+          set -e
+          # Создаём ~/.ssh
+          mkdir -p ~/.ssh
+          chmod 700 ~/.ssh
 
-      - name: Git clone my repo
-        uses: actions/checkout@v1
+          # Записываем приватный ключ (вставляется из GitHub Secrets)
+          echo "${{ secrets.SSH_PRIVATE_KEY }}" > ~/.ssh/deploy_key
+          chmod 600 ~/.ssh/deploy_key
 
-      - name: List current folder
-        run : ls -la
-        
-  
-  My-deploy:
-    runs-on: ubuntu-latest
-    needs: [My-testing]
-    env:
-      VAR1 : "This is Job Level Variable1"
-      VAR2 : "This is Job Level Variable2"
+          # Запускаем ssh-agent и добавляем ключ
+          eval "$(ssh-agent -s)"
+          ssh-add ~/.ssh/deploy_key
 
-    steps:
-      - name: Print Hello Message
-        run: echo "Hello World from Deploy job"
+          # Подставляем порт по умолчанию, если SECRET пуст
+          SSH_PORT="${REMOTE_PORT}"
+          if [ -z "$SSH_PORT" ]; then SSH_PORT=22; fi
 
-      - name: Print env vars
-        run : |
-          echo "Var1 = ${{ env.VAR1 }}"
-          echo "Var2 = ${{ env.VAR2 }}"
-          echo "Var3 = $LOCAL_VAR"
-        env : 
-          LOCAL_VAR: "This is super local Environment Variable"
+          # Добавляем хост в known_hosts (не будет интерактивного запроса)
+          ssh-keyscan -H -p "$SSH_PORT" "$REMOTE_HOST" >> ~/.ssh/known_hosts
+          chmod 644 ~/.ssh/known_hosts
+        shell: bash
 
-      - name: Printing Deployment package
-        run : echo "Deploy package name is ${{ env.DEPLOY_PACKAGE_NAME }}"
+      - name: Sync files to remote server (rsync)
+        run: |
+          set -e
+          SSH_PORT="${REMOTE_PORT}"
+          if [ -z "$SSH_PORT" ]; then SSH_PORT=22; fi
 
-      - name: Lets test some packages if they are here 1
-        run : aws --version
+          # Путь на сервере должен существовать или будет создан rsync'ом (в зависимости от прав)
+          echo "Deploying to $REMOTE_USER@$REMOTE_HOST:$TARGET_DIR (port $SSH_PORT)"
 
-      - name: Lets test some packages if they are here 2
-        run : zip  --version
+          # Исключаем лишние директории/файлы — настройте список под свой проект
+          RSYNC_EXCLUDES=(
+            --exclude='.git'
+            --exclude='.github'
+            --exclude='node_modules'
+            --exclude='.env'
+            --exclude='deploy_key'
+          )
+
+          # Выполняем rsync (рекурсивно, сжатие, сохраняем права, удаляем удалённо файлы, которых нет локально)
+          rsync -avz --delete -e "ssh -p $SSH_PORT -o StrictHostKeyChecking=yes" "${RSYNC_EXCLUDES[@]}" ./ "$REMOTE_USER@$REMOTE_HOST:$TARGET_DIR"
+
+        shell: bash
+
+
+
+
+
+
+
