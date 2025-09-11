@@ -1,6 +1,5 @@
-name: Deploy-To-Ubunty-Server
-#-------try untill you succeed---------
-run-name: ${{ github.actor }} is deploing new changes 🚀
+name: Deploy-To-Ubuntu-Server
+run-name: ${{ github.actor }} is deploying new changes 🚀
 
 on: 
   push:
@@ -24,36 +23,32 @@ jobs:
       - name: Prepare SSH key and known_hosts
         run: |
           set -e
-          # Создаём ~/.ssh
+          # Create ~/.ssh directory
           mkdir -p ~/.ssh
           chmod 700 ~/.ssh
 
-          # Записываем приватный ключ (вставляется из GitHub Secrets)
-          # echo "${{ secrets.SSH_PRIVATE_KEY }}" > ~/.ssh/deploy_key
-          echo "${{ secrets.SSH_PRIVATE_KEY }}"
+          # Write private key (from GitHub Secrets)
+          echo "${{ secrets.SSH_PRIVATE_KEY }}" > ~/.ssh/deploy_key
           chmod 600 ~/.ssh/deploy_key
 
-          # Запускаем ssh-agent и добавляем ключ
+          # Start ssh-agent and add key
           eval "$(ssh-agent -s)"
           ssh-add ~/.ssh/deploy_key
 
-          # Подставляем порт по умолчанию, если SECRET пуст
-          SSH_PORT="${REMOTE_PORT}"
-          if [ -z "$SSH_PORT" ]; then SSH_PORT=22; fi
+          # Set default port if empty
+          SSH_PORT="${REMOTE_PORT:-22}"
 
-          # Добавляем хост в known_hosts (не будет интерактивного запроса)
+          # Add host to known_hosts (avoid interactive prompt)
           ssh-keyscan -H -p "$SSH_PORT" "$REMOTE_HOST" >> ~/.ssh/known_hosts
           chmod 644 ~/.ssh/known_hosts
-        shell: bash
 
-      - name: Sync files to remote server (rsync)
+      - name: Deploy to server
         run: |
-          set -e
-          SSH_PORT="${REMOTE_PORT}"
-          if [ -z "$SSH_PORT" ]; then SSH_PORT=22; fi
-
-          # Путь на сервере должен существовать или будет создан rsync'ом (в зависимости от прав)
-          echo "Deploying to $REMOTE_USER@$REMOTE_HOST:$TARGET_DIR (port $SSH_PORT)"
+          SSH_PORT="${REMOTE_PORT:-22}"
+          rsync -avz --delete -e "ssh -p $SSH_PORT -i ~/.ssh/deploy_key" \
+            --exclude '.git' \
+            --exclude '.github' \
+            ./ $REMOTE_USER@$REMOTE_HOST:$TARGET_DIR/
 
           # Исключаем лишние директории/файлы — настройте список под свой проект
           RSYNC_EXCLUDES=(
