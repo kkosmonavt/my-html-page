@@ -20,7 +20,7 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Prepare SSH key and known_hosts
+      - name: Prepare SSH environment
         run: |
           set -e
           # Create ~/.ssh directory
@@ -30,10 +30,6 @@ jobs:
           # Write private key (from GitHub Secrets)
           echo "${{ secrets.SSH_PRIVATE_KEY }}" > ~/.ssh/deploy_key
           chmod 600 ~/.ssh/deploy_key
-
-          # Start ssh-agent and add key
-          eval "$(ssh-agent -s)"
-          ssh-add ~/.ssh/deploy_key
 
           # Set default port if empty
           SSH_PORT="${REMOTE_PORT:-22}"
@@ -45,7 +41,7 @@ jobs:
       - name: Connect to server and pull latest changes
         run: |
           SSH_PORT="${REMOTE_PORT:-22}"
-          ssh -p $SSH_PORT -i ~/.ssh/deploy_key -o StrictHostKeyChecking=yes $REMOTE_USER@$REMOTE_HOST "
+          ssh -p $SSH_PORT -i ~/.ssh/deploy_key -o StrictHostKeyChecking=yes -o BatchMode=yes $REMOTE_USER@$REMOTE_HOST "
             cd $TARGET_DIR
             echo 'Pulling latest changes from main branch...'
             git fetch origin
@@ -57,7 +53,7 @@ jobs:
       - name: Copy index.html to destination directory
         run: |
           SSH_PORT="${REMOTE_PORT:-22}"
-          ssh -p $SSH_PORT -i ~/.ssh/deploy_key -o StrictHostKeyChecking=yes $REMOTE_USER@$REMOTE_HOST "
+          ssh -p $SSH_PORT -i ~/.ssh/deploy_key -o StrictHostKeyChecking=yes -o BatchMode=yes $REMOTE_USER@$REMOTE_HOST "
             echo 'Copying index.html to /home/sanita/my-project/...'
             cp $TARGET_DIR/index.html /home/sanita/my-project/
             echo 'File copied successfully!'
@@ -68,7 +64,7 @@ jobs:
       - name: Verify deployment
         run: |
           SSH_PORT="${REMOTE_PORT:-22}"
-          ssh -p $SSH_PORT -i ~/.ssh/deploy_key -o StrictHostKeyChecking=yes $REMOTE_USER@$REMOTE_HOST "
+          ssh -p $SSH_PORT -i ~/.ssh/deploy_key -o StrictHostKeyChecking=yes -o BatchMode=yes $REMOTE_USER@$REMOTE_HOST "
             echo '=== Deployment Verification ==='
             echo 'Current directory content:'
             ls -la $TARGET_DIR/
@@ -82,9 +78,7 @@ jobs:
       - name: Clean up SSH key
         run: |
           rm -f ~/.ssh/deploy_key
-          ssh-add -D
           echo 'SSH key cleaned up!'
-
 
 
 
