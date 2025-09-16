@@ -42,29 +42,48 @@ jobs:
           ssh-keyscan -H -p "$SSH_PORT" "$REMOTE_HOST" >> ~/.ssh/known_hosts
           chmod 644 ~/.ssh/known_hosts
 
-      - name: Deploy to server
+      - name: Connect to server and pull latest changes
         run: |
           SSH_PORT="${REMOTE_PORT:-22}"
-          rsync -avz --delete -e "ssh -p $SSH_PORT -i ~/.ssh/deploy_key" \
-            --exclude '.git' \
-            --exclude '.github' \
-            ./ $REMOTE_USER@$REMOTE_HOST:$TARGET_DIR/
+          ssh -p $SSH_PORT -i ~/.ssh/deploy_key -o StrictHostKeyChecking=yes $REMOTE_USER@$REMOTE_HOST "
+            cd $TARGET_DIR
+            echo 'Pulling latest changes from main branch...'
+            git fetch origin
+            git reset --hard origin/main
+            git pull origin main
+            echo 'Latest changes pulled successfully!'
+          "
 
-          # Исключаем лишние директории/файлы — настройте список под свой проект
-          RSYNC_EXCLUDES=(
-            --exclude='.git'
-            --exclude='.github'
-            --exclude='node_modules'
-            --exclude='.env'
-            --exclude='deploy_key'
-          )
+      - name: Copy index.html to destination directory
+        run: |
+          SSH_PORT="${REMOTE_PORT:-22}"
+          ssh -p $SSH_PORT -i ~/.ssh/deploy_key -o StrictHostKeyChecking=yes $REMOTE_USER@$REMOTE_HOST "
+            echo 'Copying index.html to /home/sanita/my-project/...'
+            cp $TARGET_DIR/index.html /home/sanita/my-project/
+            echo 'File copied successfully!'
+            echo 'Checking if file exists in destination:'
+            ls -la /home/sanita/my-project/index.html
+          "
 
-          # Выполняем rsync (рекурсивно, сжатие, сохраняем права, удаляем удалённо файлы, которых нет локально)
-          rsync -avz --delete -e "ssh -p $SSH_PORT -o StrictHostKeyChecking=yes" "${RSYNC_EXCLUDES[@]}" ./ "$REMOTE_USER@$REMOTE_HOST:$TARGET_DIR"
+      - name: Verify deployment
+        run: |
+          SSH_PORT="${REMOTE_PORT:-22}"
+          ssh -p $SSH_PORT -i ~/.ssh/deploy_key -o StrictHostKeyChecking=yes $REMOTE_USER@$REMOTE_HOST "
+            echo '=== Deployment Verification ==='
+            echo 'Current directory content:'
+            ls -la $TARGET_DIR/
+            echo 'Destination directory content:'
+            ls -la /home/sanita/my-project/
+            echo 'File content check:'
+            head -5 /home/sanita/my-project/index.html
+            echo 'Deployment completed successfully! 🎉'
+          "
 
-        shell: bash
-
-
+      - name: Clean up SSH key
+        run: |
+          rm -f ~/.ssh/deploy_key
+          ssh-add -D
+          echo 'SSH key cleaned up!'
 
 
 
